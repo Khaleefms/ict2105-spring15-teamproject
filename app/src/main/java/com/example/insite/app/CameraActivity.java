@@ -1,6 +1,10 @@
 package com.example.insite.app;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -11,55 +15,56 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-import android.widget.Toast;
-
+import android.widget.ImageView;
 import java.io.File;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class CameraActivity extends ActionBarActivity {
 
     private static final String TAG = "Camera_Test";
-    private static final int CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE = 100;
-
-    private Uri fileUri;
+    private static final int CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE = 1001;
 
     public static final int MEDIA_TYPE_IMAGE = 1;
 
-    /** Create a file Uri for saving an image or video */
-    private static Uri getOutputMediaFileUri(int type){
-        return Uri.fromFile(getOutputMediaFile(type));
-    }
+    String currentImagePath;
+    private Uri currentImageUri;
 
-    /** Create a File for saving an image or video */
-    private static File getOutputMediaFile(int type){
-        // To be safe, you should check that the SDCard is mounted
-        // using Environment.getExternalStorageState() before doing this.
+    static File imagePath;
 
-        File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_PICTURES), "MyCameraApp");
-        // This location works best if you want the created images to be shared
-        // between applications and persist after your app has been uninstalled.
-
-        // Create the storage directory if it does not exist
-        if (! mediaStorageDir.exists()){
-            if (! mediaStorageDir.mkdirs()){
-                Log.d("MyCameraApp", "failed to create directory");
+    private static Uri getImageFileUri() {
+        // Create a storage directory for the images
+        // To be safe(er), you should check that the SDCard is mounted
+        // using Environment.getExternalStorageState() before doing this
+        imagePath = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES), "inSITe");
+        Log.d(TAG, "Find " + imagePath.getAbsolutePath());
+        if (!imagePath.exists()) {
+            if (!imagePath.mkdirs()) {
+                Log.d("CameraTestIntent", "failed to create directory");
                 return null;
+            } else {
+                Log.d(TAG, "create new inSITe folder");
             }
         }
 
-        // Create a media file name
+        // Create an image file name
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        File mediaFile;
-        if (type == MEDIA_TYPE_IMAGE){
-            mediaFile = new File(mediaStorageDir.getPath() + File.separator +
-                    "IMG_"+ timeStamp + ".jpg");
-        } else {
-            return null;
+        File image = new File(imagePath, "inSITe" + timeStamp + ".jpg");
+
+        if (!image.exists()) {
+            try {
+                image.createNewFile();
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
         }
 
-        return mediaFile;
+        //return image;
+        // Create an File Uri
+        return Uri.fromFile(image);
     }
 
     @Override
@@ -75,12 +80,15 @@ public class CameraActivity extends ActionBarActivity {
         randomButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
 
+
+                if (currentImageUri == null) {
+                    currentImageUri = getImageFileUri();
+                }
                 Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                fileUri = getOutputMediaFileUri(MEDIA_TYPE_IMAGE);
-                // method to create a file to save the image
-                //intent.putExtra(MediaStore.EXTRA_OUTPUT, fileUri);
-                // set the image file name
+                intent.putExtra(MediaStore.EXTRA_OUTPUT, currentImageUri); // set the image file name
+                // start the image capture Intent
                 startActivityForResult(intent, CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE);
+
             }
         });
 
@@ -122,28 +130,83 @@ public class CameraActivity extends ActionBarActivity {
         if (requestCode == CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
                 Log.d(TAG, "Trying to save image!");
-                // Image captured and saved to fileUri specified in the Intent
-                Toast.makeText(getApplicationContext(), "Image saved to:\n" +
-                        data.getData(), Toast.LENGTH_LONG).show();
+                galleryAddPic();
+
+                //setPic();
+                File savedFile;
+                if(currentImagePath == null){
+                    savedFile= new File(currentImageUri.getPath());
+                }else{
+                    savedFile = new File(currentImagePath);
+                }
+                ImageView imageViewer = (ImageView) findViewById(R.id.imagePreviewThumb);
+                // Decode image url and retrieve the image
+                Bitmap bMap = BitmapFactory.decodeFile(currentImageUri.getPath());
+                // Rotate image
+                bMap = imageOrientationValidator(bMap,currentImageUri.getPath());
+                // Resize image
+                Bitmap bMapScaled = Bitmap.createScaledBitmap(bMap, 600, 400, true);
+                // Set image to viewer
+                imageViewer.setImageBitmap(bMapScaled);
+
             } else if (resultCode == RESULT_CANCELED) {
                 // User cancelled the image capture
             } else {
                 // Image capture failed, advise user
             }
         }
+    }
+    private void galleryAddPic() {
+        /**
+         * copy current image to Gallery
+         */
+        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        mediaScanIntent.setData(currentImageUri);
+        this.sendBroadcast(mediaScanIntent);
+    }
 
-//        if (requestCode == CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE) {
-//            if (resultCode == RESULT_OK) {
-//                Log.d(TAG, "Trying to save image!");
-//                // Image captured and saved to fileUri specified in the Intent
-//                Toast.makeText(this, "Image saved to:\n" +
-//                        data.getData(), Toast.LENGTH_LONG).show();
-//            } else if (resultCode == RESULT_CANCELED) {
-//                // User cancelled the image capture
-//            } else {
-//                // Image capture failed, advise user
-//                Log.d(TAG, "Image capture failed!!");
-//            }
-//        }
+    private Bitmap imageOrientationValidator(Bitmap bitmap, String path) {
+
+        ExifInterface ei;
+        try {
+            ei = new ExifInterface(path);
+            int orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL);
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    bitmap = rotateImage(bitmap, 90);
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                    bitmap = rotateImage(bitmap, 180);
+                    break;
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    bitmap = rotateImage(bitmap, 270);
+                    break;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return bitmap;
+    }
+
+    private Bitmap rotateImage(Bitmap source, float angle) {
+
+        Bitmap bitmap = null;
+        Matrix matrix = new Matrix();
+        matrix.postRotate(angle);
+        try {
+            bitmap = Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(),
+                    matrix, true);
+        } catch (OutOfMemoryError err) {
+            err.printStackTrace();
+        }
+        return bitmap;
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle savedInstanceState) {
+        super.onSaveInstanceState(savedInstanceState);
+        savedInstanceState.putString("currentImagePath", currentImageUri.getPath());
     }
 }

@@ -9,13 +9,6 @@ import android.widget.ListView;
 
 import com.example.insite.app.dummy.DummyContent;
 
-/**
- * A fragment representing a list of Items.
- * <p/>
- * <p/>
- * Activities containing this fragment MUST implement the {@link OnFragmentInteractionListener}
- * interface.
- */
 public class PendingListFragment extends ListFragment {
 
     // TODO: Rename parameter arguments, choose names that match

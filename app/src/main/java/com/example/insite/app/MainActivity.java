@@ -1,5 +1,6 @@
 package com.example.insite.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
@@ -75,6 +76,10 @@ public class MainActivity extends ActionBarActivity implements ActionBar.TabList
                             .setText(mSectionsPagerAdapter.getPageTitle(i))
                             .setTabListener(this));
         }
+        Intent intent = new Intent(getApplicationContext(), CameraActivity.class);
+        startActivity(intent);
+        Intent intent2 = new Intent(getApplicationContext(), SettingsActivity.class);
+        startActivity(intent2);
     }
 
 
