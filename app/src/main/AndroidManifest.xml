@@ -30,7 +30,7 @@
             android:label="@string/title_activity_camera" >
         </activity>
         <activity
-            android:name=".SettingsActivity"
+            android:name=".SetPreferenceActivity"
             android:label="@string/title_activity_settings" >
         </activity>
     </application>
